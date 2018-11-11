@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
+import java.util.List;
 
 /**
  * Renders documents in the Markdown format.
@@ -18,31 +19,27 @@ import java.lang.reflect.Field;
  */
 public class MarkdownEngine extends MarkupEngine {
 
-    private Logger logger = LoggerFactory.getLogger(MarkdownEngine.class);
+    private static final Logger logger = LoggerFactory.getLogger(MarkdownEngine.class);
 
     @Override
     public void processBody(final ParserContext context) {
-        String[] mdExts = context.getConfig().getStringArray("markdown.extensions");
+        List<String> mdExts = context.getConfig().getMarkdownExtensions();
 
         int extensions = Extensions.NONE;
-        if (mdExts.length > 0) {
-            for (int index = 0; index < mdExts.length; index++) {
-                String ext = mdExts[index];
-                if (ext.startsWith("-")) {
-		    ext = ext.substring(1);
-                    extensions=removeExtension(extensions, extensionFor(ext));
-                } else {
-                    if (ext.startsWith("+")) {
-		      ext = ext.substring(1);
-                    }
-                    extensions=addExtension(extensions, extensionFor(ext));
+
+        for (String ext : mdExts) {
+            if (ext.startsWith("-")) {
+                ext = ext.substring(1);
+                extensions = removeExtension(extensions, extensionFor(ext));
+            } else {
+                if (ext.startsWith("+")) {
+                    ext = ext.substring(1);
                 }
+                extensions = addExtension(extensions, extensionFor(ext));
             }
         }
 
-        DataHolder options = PegdownOptionsAdapter.flexmarkOptions(
-                extensions
-        );
+        DataHolder options = PegdownOptionsAdapter.flexmarkOptions(extensions);
 
         Parser parser = Parser.builder(options).build();
         HtmlRenderer renderer = HtmlRenderer.builder(options).build();
@@ -64,10 +61,11 @@ public class MarkdownEngine extends MarkupEngine {
     }
 
     private int addExtension(int previousExtensions, int additionalExtension) {
-    	return previousExtensions | additionalExtension;
+        return previousExtensions | additionalExtension;
     }
+
     private int removeExtension(int previousExtensions, int unwantedExtension) {
-    	return previousExtensions & (~unwantedExtension);
+        return previousExtensions & (~unwantedExtension);
     }
 
 }

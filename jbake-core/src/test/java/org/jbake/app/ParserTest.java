@@ -1,7 +1,7 @@
 package org.jbake.app;
 
-import org.apache.commons.configuration.CompositeConfiguration;
-import org.apache.commons.configuration.ConfigurationException;
+import org.jbake.app.configuration.ConfigUtil;
+import org.jbake.app.configuration.DefaultJBakeConfiguration;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -21,8 +21,8 @@ public class ParserTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    public CompositeConfiguration config;
-    public Parser parser;
+    private DefaultJBakeConfiguration config;
+    private Parser parser;
     private File rootPath;
 
     private File validHTMLFile;
@@ -34,6 +34,10 @@ public class ParserTest {
     private File validAsciiDocFileWithHeaderInContent;
     private File validAsciiDocFileWithoutJBakeMetaData;
     private File validMarkdownFileWithCustomHeader;
+    private File validMarkdownFileWithDefaultStatus;
+    private File validMarkdownFileWithDefaultTypeAndStatus;
+    private File invalidMarkdownFileWithoutDefaultStatus;
+    private File invalidMDFile;
     private File invalidExtensionFile;
 
     private String validHeader = "title=This is a Title = This is a valid Title\nstatus=draft\ntype=post\ndate=2013-09-02\n~~~~~~";
@@ -43,9 +47,9 @@ public class ParserTest {
 
     @Before
     public void createSampleFile() throws Exception {
-        rootPath = new File(this.getClass().getResource(".").getFile());
-        config = ConfigUtil.load(rootPath);
-        parser = new Parser(config, rootPath.getPath());
+        rootPath = new File(this.getClass().getResource("/fixture").getFile());
+        config = (DefaultJBakeConfiguration) new ConfigUtil().loadConfig(rootPath);
+        parser = new Parser(config);
 
         validHTMLFile = folder.newFile("valid.html");
         PrintWriter out = new PrintWriter(validHTMLFile);
@@ -134,6 +138,63 @@ public class ParserTest {
         out.println("type=post");
         out.println("status=draft");
         out.println(customHeaderSeparator);
+        out.println("# Hello Markdown!");
+        out.println("");
+        out.println("A paragraph");
+        out.println("");
+        out.println("* And");
+        out.println("* A");
+        out.println("* List");
+        out.close();
+
+        validMarkdownFileWithDefaultStatus = folder.newFile("validMdDefaultStatus.md");
+
+        out = new PrintWriter(validMarkdownFileWithDefaultStatus);
+        out.println("title=Custom Header separator");
+        out.println("type=post");
+        out.println(config.getHeaderSeparator());
+        out.println("# Hello Markdown!");
+        out.println("");
+        out.println("A paragraph");
+        out.println("");
+        out.println("* And");
+        out.println("* A");
+        out.println("* List");
+        out.close();
+
+        validMarkdownFileWithDefaultTypeAndStatus = folder.newFile("validMdDefaultTypeAndStatus.md");
+
+        out = new PrintWriter(validMarkdownFileWithDefaultTypeAndStatus);
+        out.println("title=Custom Header separator");
+        out.println(config.getHeaderSeparator());
+        out.println("# Hello Markdown!");
+        out.println("");
+        out.println("A paragraph");
+        out.println("");
+        out.println("* And");
+        out.println("* A");
+        out.println("* List");
+        out.close();
+
+        invalidMarkdownFileWithoutDefaultStatus = folder.newFile("invalidMdWithoutDefaultStatus.md");
+
+        out = new PrintWriter(invalidMarkdownFileWithoutDefaultStatus);
+        out.println("title=Custom Header separator");
+        out.println("type=page");
+        out.println(config.getHeaderSeparator());
+        out.println("# Hello Markdown!");
+        out.println("");
+        out.println("A paragraph");
+        out.println("");
+        out.println("* And");
+        out.println("* A");
+        out.println("* List");
+        out.close();
+
+        invalidMDFile = folder.newFile("invalidMd.md");
+
+        out = new PrintWriter(invalidMDFile);
+        out.println(invalidHeader);
         out.println("# Hello Markdown!");
         out.println("");
         out.println("A paragraph");
@@ -233,11 +294,10 @@ public class ParserTest {
     }
 
     @Test
-    public void parseValidAsciiDocFileWithoutJBakeMetaDataUsingDefaultTypeAndStatus() throws ConfigurationException {
-
-        config.addProperty(ConfigUtil.Keys.DEFAULT_STATUS, "published");
-        config.addProperty(ConfigUtil.Keys.DEFAULT_TYPE, "page");
-
+    public void parseValidAsciiDocFileWithoutJBakeMetaDataUsingDefaultTypeAndStatus() {
+        config.setDefaultStatus("published");
+        config.setDefaultType("page");
+        Parser parser = new Parser(config);
         Map<String, Object> map = parser.processFile(validAsciiDocFileWithoutJBakeMetaData);
         Assert.assertNotNull(map);
         Assert.assertEquals("published", map.get("status"));
@@ -248,7 +308,7 @@ public class ParserTest {
 
     @Test
     public void parseMarkdownFileWithCustomHeaderSeparator() {
-        config.setProperty(ConfigUtil.Keys.HEADER_SEPARATOR, customHeaderSeparator);
+        config.setHeaderSeparator(customHeaderSeparator);
 
         Map<String, Object> map = parser.processFile(validMarkdownFileWithCustomHeader);
         Assert.assertNotNull(map);
@@ -258,4 +318,41 @@ public class ParserTest {
                 .contains("<p>A paragraph</p>");
 
     }
+
+    @Test
+    public void parseMarkdownFileWithDefaultStatus() {
+        config.setDefaultStatus("published");
+
+        Map<String, Object> map = parser.processFile(validMarkdownFileWithDefaultStatus);
+        Assert.assertNotNull(map);
+        Assert.assertEquals("published", map.get("status"));
+        Assert.assertEquals("post", map.get("type"));
+    }
+
+    @Test
+    public void parseMarkdownFileWithDefaultTypeAndStatus() {
+        config.setDefaultStatus("published");
+        config.setDefaultType("page");
+
+        Map<String, Object> map = parser.processFile(validMarkdownFileWithDefaultTypeAndStatus);
+        Assert.assertNotNull(map);
+        Assert.assertEquals("published", map.get("status"));
+        Assert.assertEquals("page", map.get("type"));
+    }
+
+    @Test
+    public void parseInvalidMarkdownFileWithoutDefaultStatus() {
+        config.setDefaultStatus("");
+        config.setDefaultType("page");
+
+        Map<String, Object> map = parser.processFile(invalidMarkdownFileWithoutDefaultStatus);
+        Assert.assertNull(map);
+    }
+
+    @Test
+    public void parseInvalidMarkdownFile() {
+        Map<String, Object> map = parser.processFile(invalidMDFile);
+        Assert.assertNull(map);
+    }
+
 }
